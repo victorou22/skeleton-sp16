@@ -87,7 +87,7 @@ public class SampleCreature extends Creature {
      *  Returns the action selected.
      */
     public Action chooseAction(Map<Direction, Occupant> neighbors) {
-        List<Direction> empties = getNeighborsOfType(neighbors, "empty");
+        List<Direction> empties = getNeighborsOfType(neighbors, "empty");      
         if (empties.size() == 1) {
             Direction moveDir = empties.get(0);
             return new Action(Action.ActionType.MOVE, moveDir);
@@ -99,7 +99,6 @@ public class SampleCreature extends Creature {
                 return new Action(Action.ActionType.MOVE, moveDir);
             }
         }
-
         return new Action(Action.ActionType.STAY);
     }
 

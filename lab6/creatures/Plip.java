@@ -19,13 +19,15 @@ public class Plip extends Creature {
     private int g;
     /** blue color. */
     private int b;
+    /** energy retained when replicating */
+    private static final double repEnergyRetained = 0.5;
 
     /** creates plip with energy equal to E. */
     public Plip(double e) {
         super("plip");
-        r = 0;
-        g = 0;
-        b = 0;
+        r = 99;
+        g = 63;
+        b = 76;
         energy = e;
     }
 
@@ -42,7 +44,7 @@ public class Plip extends Creature {
      *  that you get this exactly correct.
      */
     public Color color() {
-        g = 63;
+        g = 63 + (int) ((energy/2.0) * (255 - 63));     //energy ranges from 0.0 to 2.0
         return color(r, g, b);
     }
 
@@ -55,11 +57,16 @@ public class Plip extends Creature {
      *  private static final variable. This is not required for this lab.
      */
     public void move() {
+        energy -= 0.15;
     }
 
 
     /** Plips gain 0.2 energy when staying due to photosynthesis. */
     public void stay() {
+        energy += 0.2;
+        if (energy > 2.0) {
+            energy = 2.0;
+        }
     }
 
     /** Plips and their offspring each get 50% of the energy, with none
@@ -67,7 +74,8 @@ public class Plip extends Creature {
      *  Plip.
      */
     public Plip replicate() {
-        return this;
+        energy = repEnergyRetained * energy;
+        return new Plip(energy);
     }
 
     /** Plips take exactly the following actions based on NEIGHBORS:
@@ -81,6 +89,16 @@ public class Plip extends Creature {
      *  for an example to follow.
      */
     public Action chooseAction(Map<Direction, Occupant> neighbors) {
+        List<Direction> empties = getNeighborsOfType(neighbors, "empty");
+        if (empties.isEmpty()) {
+            return new Action(Action.ActionType.STAY);
+        } else if (energy >= 1) {
+            return new Action(Action.ActionType.REPLICATE, HugLifeUtils.randomEntry(empties));
+        } else if (!getNeighborsOfType(neighbors, "clorus").isEmpty()) {
+            if(HugLifeUtils.random() < 0.5) {
+                return new Action(Action.ActionType.MOVE, HugLifeUtils.randomEntry(empties));
+            }
+        }
         return new Action(Action.ActionType.STAY);
     }
 
