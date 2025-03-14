@@ -1,4 +1,4 @@
-/** Demonstrates how the FailureSequence class works. */
+ /** Demonstrates how the FailureSequence class works. */
 public class FailureSequenceDemo {
     public static void main(String[] args) {
         FailureSequence fs = new FailureSequence();

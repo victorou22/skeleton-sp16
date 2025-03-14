@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 import edu.princeton.cs.algs4.StdRandom;
 
 
@@ -28,7 +29,18 @@ public class TestComplexOomage {
          * and ensure that no bucket has fewer than N / 50
          * Oomages and no bucket has more than N / 2.5 Oomages.
          */
-        return false;
+        int[] buckets = new int[10];
+        for (Oomage oo : oomages) {
+            int hash = (oo.hashCode() & 0x7FFFFFFF) % 10;
+            buckets[hash]++;
+        }
+        int N = oomages.size();
+        for (int count : buckets) {
+            if (count < N/50 || count > N/2.5) {
+                return false;
+            }
+        }
+        return true;
     }
 
 
@@ -48,7 +60,14 @@ public class TestComplexOomage {
     public void testWithDeadlyParams() {
         /* TODO: Create a Set that shows the flaw in the hashCode function.
          */
+        int N = 10000;
+        
         HashSet<ComplexOomage> oomages = new HashSet<ComplexOomage>();
+        List<Integer> params = new ArrayList<Integer>(Collections.nCopies(10, 255));
+        
+        for (int i = 0; i < N; i++) {
+            oomages.add(new ComplexOomage(params));
+        }
 
         assertTrue(haveNiceHashCodeSpread(oomages));
     }

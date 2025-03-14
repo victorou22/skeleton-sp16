@@ -1,15 +1,13 @@
-import java.awt.Color;
-import java.io.ByteArrayOutputStream;
-import java.io.OutputStream;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.LinkedList;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /* Maven is used to pull in these dependencies. */
 import com.google.gson.Gson;
+
+import javax.imageio.ImageIO;
 
 import static spark.Spark.*;
 
@@ -18,6 +16,7 @@ import static spark.Spark.*;
  * application project, receiving API calls, handling the API call processing, and generating
  * requested images and routes.
  * @author Alan Yao
+ * @author Victor Ou
  */
 public class MapServer {
     /**
@@ -36,12 +35,12 @@ public class MapServer {
     /** Route stroke information: Cyan with half transparency. */
     public static final Color ROUTE_STROKE_COLOR = new Color(108, 181, 230, 200);
     /** The tile images are in the IMG_ROOT folder. */
-    private static final String IMG_ROOT = "img/";
+    private static final String IMG_ROOT = "static/img/";
     /**
      * The OSM XML file path. Downloaded from <a href="http://download.bbbike.org/osm/">here</a>
      * using custom region selection.
      **/
-    private static final String OSM_DB_PATH = "berkeley.osm";
+    private static final String OSM_DB_PATH = "static/berkeley.osm";
     /**
      * Each raster request to the server will have the following parameters
      * as keys in the params map accessible by,
@@ -60,20 +59,34 @@ public class MapServer {
      **/
     private static final String[] REQUIRED_ROUTE_REQUEST_PARAMS = {"start_lat", "start_lon",
         "end_lat", "end_lon"};
-    /* Define any static variables here. Do not define any instance variables of MapServer. */
-    private static GraphDB g;
 
-    /**
-     * Place any initialization statements that will be run before the server main loop here.
-     * Do not place it in the main function. Do not place initialization code anywhere else.
-     * This is for testing purposes, and you may fail tests otherwise.
-     **/
+    private static GraphDB g;
+    private static QuadTree quadTree;
+    private static Map<Long, Node> nodeMap;
+    private static Map<Node, Set<Node>> connections;
+    private static LinkedList<Long> routeIds;
+    private static LinkedList<Node> routeNodes;
+
     public static void initialize() {
         g = new GraphDB(OSM_DB_PATH);
+        quadTree = new QuadTree(ROOT_ULLON, ROOT_ULLAT, ROOT_LRLON, ROOT_LRLAT);
+        nodeMap = g.getNodeMap();
+        connections = g.getConnections();
+        routeIds = new LinkedList<Long>();
+        routeNodes = new LinkedList<Node>();
+    }
+
+    private static int getHerokuAssignedPort() {
+        ProcessBuilder processBuilder = new ProcessBuilder();
+        if (processBuilder.environment().get("PORT") != null) {
+            return Integer.parseInt(processBuilder.environment().get("PORT"));
+        }
+        return 4567; //return default port if heroku-port isn't set (i.e. on localhost)
     }
 
     public static void main(String[] args) {
         initialize();
+        port(getHerokuAssignedPort());
         staticFileLocation("/page");
         /* Allow for all origin requests (since this is not an authenticated server, we do not
          * care about CSRF).  */
@@ -202,8 +215,143 @@ public class MapServer {
      * @see #REQUIRED_RASTER_REQUEST_PARAMS
      */
     public static Map<String, Object> getMapRaster(Map<String, Double> params, OutputStream os) {
-        HashMap<String, Object> rasteredImageParams = new HashMap<>();
+        double q_ullon = params.get("ullon");
+        double q_ullat = params.get("ullat");
+        double q_lrlon = params.get("lrlon");
+        double q_lrlat = params.get("lrlat");
+
+        /* Calculate the distance per pixel for the root frame and the requested frame */
+        double dppCurrent = Math.abs(ROOT_LRLON - ROOT_ULLON) / TILE_SIZE;
+        double dppRequested = Math.abs(q_lrlon - q_ullon)/params.get("w");
+
+        /* Calculate what level of the quadTree to recurse to */
+        int depth = 0;
+        while (dppCurrent > dppRequested) {
+            depth++;
+            dppCurrent /= 2;
+        }
+        /* Max depth is 7 */
+        if (depth > 7) {
+            depth = 7;
+        }
+
+        /* List to store the QTreeNodes that we find at the target depth within the query */
+        List<QTreeNode> requestedTiles = new ArrayList<QTreeNode>();
+        QTreeNode queryTile = new QTreeNode("query", q_ullon, q_ullat, q_lrlon, q_lrlat);
+        /* Add all of the tiles filling the query criteria to the requestedTiles list */
+        collectRequestedTiles(requestedTiles, quadTree.getRoot(), queryTile, depth);
+        /* Sort/arrange the tiles using their longitudes and latitudes such that they create a grid */
+        sortRequestedTiles(requestedTiles);
+
+        /* Create a new BufferedImage with the dimensions of the fully rastered image */
+        QTreeNode firstTile = requestedTiles.get(0);
+        QTreeNode lastTile = requestedTiles.get(requestedTiles.size() - 1);
+        int imgWidth = (int) (TILE_SIZE * Math.abs(lastTile.getLrlon() - firstTile.getUllon()) /
+                Math.abs(firstTile.getLrlon() - firstTile.getUllon()));
+        int imgHeight = (int) (TILE_SIZE * Math.abs(lastTile.getLrlat() - firstTile.getUllat())/
+                Math.abs(firstTile.getLrlat() - firstTile.getUllat()));
+        BufferedImage bi = new BufferedImage(imgWidth, imgHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics g = bi.getGraphics();
+
+        /* Draw each tile in the list onto its correct position in the rastered image */
+        rasterTiles(g, requestedTiles, imgWidth);
+
+        /* Draw route of the shortest path */
+        drawRoute(g, firstTile.getUllon(), firstTile.getUllat(),
+                Math.abs(lastTile.getLrlon() - firstTile.getUllon()), Math.abs(lastTile.getLrlat() - firstTile.getUllat()),
+                imgHeight, imgWidth);
+
+        try {
+            ImageIO.write(bi, "png", os);
+        } catch (IOException ioe) {
+            System.out.println("File write error: Could not write to OutputStream.");
+        }
+
+        g.dispose();
+
+        /* Put all of the final return parameters into the returned map */
+        HashMap<String, Object> rasteredImageParams = new HashMap<String, Object>();
+        rasteredImageParams.put("raster_ul_lon", firstTile.getUllon());
+        rasteredImageParams.put("raster_ul_lat", firstTile.getUllat());
+        rasteredImageParams.put("raster_lr_lon", lastTile.getLrlon());
+        rasteredImageParams.put("raster_lr_lat", lastTile.getLrlat());
+        rasteredImageParams.put("raster_width", (double) imgWidth);
+        rasteredImageParams.put("raster_height", (double) imgHeight);
+        rasteredImageParams.put("depth", depth);
+        rasteredImageParams.put("query_success", true);
+
         return rasteredImageParams;
+    }
+
+    /* Recursively search for the tiles in the quadTree that fit the query criteria */
+    private static void collectRequestedTiles(List<QTreeNode> requestedTiles, QTreeNode currTile, QTreeNode queryTile, int depth) {
+        if (depth == 0 && currTile.intersects(queryTile)) {
+            requestedTiles.add(currTile);
+        } else if (depth > 0) {
+            if (currTile.getTile1().intersects(queryTile)) {
+                collectRequestedTiles(requestedTiles, currTile.getTile1(), queryTile, depth - 1);
+            }
+            if (currTile.getTile2().intersects(queryTile)) {
+                collectRequestedTiles(requestedTiles, currTile.getTile2(), queryTile, depth - 1);
+            }
+            if (currTile.getTile3().intersects(queryTile)) {
+                collectRequestedTiles(requestedTiles, currTile.getTile3(), queryTile, depth - 1);
+            }
+            if (currTile.getTile4().intersects(queryTile)) {
+                collectRequestedTiles(requestedTiles, currTile.getTile4(), queryTile, depth - 1);
+            }
+        }
+    }
+
+    private static void sortRequestedTiles(List<QTreeNode> requestedTiles) {
+        Collections.sort(requestedTiles);
+    }
+
+    /* Combine the separate tiles into one large image */
+    private static void rasterTiles(Graphics g, List<QTreeNode> requestedTiles, int imgWidth) {
+        int x = 0;
+        int y = 0;
+        for (QTreeNode tile : requestedTiles) {
+            try {
+                //BufferedImage tileImage = ImageIO.read(new File(IMG_ROOT + tile.getId() + ".png"));
+                String imgPath = IMG_ROOT + tile.getId() + ".png";
+                InputStream in = MapServer.class.getClassLoader().getResourceAsStream(imgPath);
+                BufferedImage tileImage = ImageIO.read(in);
+                g.drawImage(tileImage, x, y, null);
+                x += TILE_SIZE;
+                if (x >= imgWidth) {
+                    x = 0;
+                    y += TILE_SIZE;
+                }
+            } catch (IOException ioe) {
+                System.out.println("File read error: No such file.");
+            }
+        }
+
+    }
+
+    /* Draw the route that was found using the A* search algorithm */
+    private static void drawRoute(Graphics g, double xOrigin, double yOrigin, double lonWidth, double latHeight,
+                                  int imgHeight, int imgWidth) {
+        ((Graphics2D) g).setStroke(new BasicStroke(MapServer.ROUTE_STROKE_WIDTH_PX,
+                BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(ROUTE_STROKE_COLOR);
+
+        if (!routeNodes.isEmpty()) {
+            Iterator<Node> iter = routeNodes.iterator();
+            Node currentNode = iter.next();
+            Node previousNode = null;
+            while (iter.hasNext()) {
+                previousNode = currentNode;
+                currentNode = iter.next();
+                int previousNodeX = (int) Math.floor((imgWidth * Math.abs(previousNode.getLon() - xOrigin) / lonWidth));
+                int previousNodeY = (int) Math.floor((imgHeight * Math.abs(yOrigin - previousNode.getLat()) / latHeight));
+                int currentNodeX = (int) Math.floor((imgWidth * Math.abs(currentNode.getLon() - xOrigin) / lonWidth));
+                int currentNodeY = (int) Math.floor((imgHeight * Math.abs(yOrigin - currentNode.getLat()) / latHeight));
+
+                g.drawLine(previousNodeX, previousNodeY, currentNodeX, currentNodeY);
+            }
+        }
     }
 
     /**
@@ -217,13 +365,71 @@ public class MapServer {
      * @return A LinkedList of node ids from the start of the route to the end.
      */
     public static LinkedList<Long> findAndSetRoute(Map<String, Double> params) {
-        return new LinkedList<>();
+        double startLon = params.get("start_lon");
+        double startLat = params.get("start_lat");
+        double endLon = params.get("end_lon");
+        double endLat = params.get("end_lat");
+
+        clearRoute();
+        /* Find the closest real node from the queried point*/
+        Node startNode = null;
+        Node endNode = null;
+        Node tempStartNode = new Node(0, startLon, startLat);
+        Node tempEndNode = new Node(0, endLon, endLat);
+        double distanceFromStartNode = Double.MAX_VALUE;
+        double distanceFromEndNode = Double.MAX_VALUE;
+        for (Map.Entry<Long, Node> e : nodeMap.entrySet()) {
+            Node n = e.getValue();
+            double distanceFromTempStartNode = tempStartNode.distanceTo(n);
+            if (distanceFromTempStartNode < distanceFromStartNode) {
+                startNode = n;
+                distanceFromStartNode = distanceFromTempStartNode;
+            }
+            double distanceFromTempEndNode = tempEndNode.distanceTo(n);
+            if (distanceFromTempEndNode < distanceFromEndNode) {
+                endNode = n;
+                distanceFromEndNode = distanceFromTempEndNode;
+            }
+        }
+
+        /* Implements the A* search algorithm to find the shortest path between
+        /* the queried points. */
+        PriorityQueue<Node> pq = new PriorityQueue<Node>();
+        Set<Node> seenBefore = new HashSet<Node>();
+        startNode.resetDistances();
+        pq.add(startNode);
+        while (!pq.peek().equals(endNode)) {
+            Node currentNode = pq.poll();
+            seenBefore.add(currentNode);
+            for (Node neighbor : connections.get(currentNode)) {
+                if (!seenBefore.contains(neighbor)) {
+                    Node toBeQueued = new Node(neighbor.getId(), neighbor.getLon(), neighbor.getLat());
+                    double newDistanceFromStart = currentNode.getDistanceFromStart() + neighbor.distanceTo(currentNode);
+                    toBeQueued.setDistanceFromStart(newDistanceFromStart);
+                    double newDistanceFromEnd = neighbor.distanceTo(endNode);
+                    toBeQueued.setDistanceFromEnd(newDistanceFromEnd);
+                    toBeQueued.setPreviousNode(currentNode);
+                    pq.add(toBeQueued);
+                }
+            }
+        }
+
+        /* After reaching the end, add the nodes in the shortest path into the routeNodes list */
+        Node currentNode = pq.poll();
+        while (currentNode != null) {
+            routeNodes.addFirst(currentNode);
+            routeIds.addFirst(currentNode.getId());
+            currentNode = currentNode.getPreviousNode();
+        }
+        return routeIds;
     }
 
     /**
      * Clear the current found route, if it exists.
      */
     public static void clearRoute() {
+        routeNodes.clear();
+        routeIds.clear();
     }
 
     /**

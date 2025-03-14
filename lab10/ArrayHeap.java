@@ -12,7 +12,12 @@ public class ArrayHeap<T> {
 	 * Inserts an item with the given priority value. This is enqueue, or offer.
 	 */
 	public void insert(T item, double priority) {
-
+		if (this.contents.isEmpty()) {
+			this.setNode(1, new Node(item, priority));
+		} else{
+			this.setNode(this.contents.size() - 1, new Node(item, priority));
+			this.bubbleUp(this.contents.size() - 2);
+		}
 	}
 
 	/**
@@ -20,8 +25,10 @@ public class ArrayHeap<T> {
 	 * from the heap.
 	 */
 	public Node peek() {
-		// TODO Complete this method!
-		return null;
+		if (this.contents.isEmpty()) {
+			return null;
+		}
+		return contents.get(1);
 	}
 
 	/**
@@ -29,8 +36,14 @@ public class ArrayHeap<T> {
 	 * the heap. This is dequeue, or poll.
 	 */
 	public Node removeMin() {
-		// TODO Complete this method!
-		return null;
+		if (this.contents.isEmpty()) {
+			return null;
+		}
+		Node minNode = this.peek();
+		this.swap(1, this.contents.size()-2);
+		this.contents.remove(this.contents.size()-2);
+		this.bubbleDown(1);
+		return minNode;
 	}
 
 	/**
@@ -39,7 +52,12 @@ public class ArrayHeap<T> {
 	 * nodes with the same item. Check for item equality with .equals(), not ==
 	 */
 	public void changePriority(T item, double priority) {
-		// TODO Complete this method!
+		for (int i = 1; i < this.contents.size(); i++) {
+			if (this.contents.get(i).item().equals(item)) {
+				this.contents.set(i, new Node(item, priority));
+				return;
+			}
+		}
 	}
 
 	/**
@@ -102,52 +120,73 @@ public class ArrayHeap<T> {
 	 * Returns the index of the node to the left of the node at i.
 	 */
 	private int getLeftOf(int i) {
-		// TODO Complete this method!
-		return 0;
+		return 2*i;
 	}
 
 	/**
 	 * Returns the index of the node to the right of the node at i.
 	 */
 	private int getRightOf(int i) {
-		// TODO Complete this method!
-		return 0;
+		return 2*i + 1;
 	}
 
 	/**
 	 * Returns the index of the node that is the parent of the node at i.
 	 */
 	private int getParentOf(int i) {
-		// TODO Complete this method!
-		return 0;
+		if (i == 1) {
+			return -1;
+		}
+		return i/2;
 	}
 
 	/**
 	 * Adds the given node as a left child of the node at the given index.
 	 */
 	private void setLeft(int index, Node n) {
-		// TODO Complete this method!
+		int leftIndex = this.getLeftOf(index);
+		contents.set(leftIndex, n);
 	}
 
 	/**
 	 * Adds the given node as the right child of the node at the given index.
 	 */
-	private void setRight(int inde, Node n) {
-		// TODO Complete this method!
+	private void setRight(int index, Node n) {
+		int rightIndex = this.getRightOf(index);
+		contents.set(rightIndex, n);
 	}
 
 	/**
 	 * Bubbles up the node currently at the given index.
 	 */
 	private void bubbleUp(int index) {
-		// TODO Complete this method!
+		if (index == 1 || this.getNode(index) == null) {
+			return;
+		}
+		int parentIndex = this.getParentOf(index);
+		if (this.min(index, parentIndex) == index) {
+			this.swap(index, parentIndex);
+			this.bubbleUp(parentIndex);
+		}
 	}
 
 	/**
 	 * Bubbles down the node currently at the given index.
 	 */
-	private void bubbleDown(int inex) {
-		// TODO Complete this method!
+	private void bubbleDown(int index) {
+		if (this.getNode(index) == null) {
+			return;
+		}
+		int leftIndex = this.getLeftOf(index);
+		int rightIndex = this.getRightOf(index);
+		if (this.getNode(leftIndex) == null && this.getNode(rightIndex) == null) {
+			return;
+		}
+		int indexToSwap = this.min(leftIndex, rightIndex);
+		if (this.min(index, indexToSwap) == indexToSwap) {	
+			this.swap(index, indexToSwap);
+			this.bubbleDown(indexToSwap);
+		}
 	}
 
 	/**

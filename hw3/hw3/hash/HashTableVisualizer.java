@@ -12,23 +12,25 @@ public class HashTableVisualizer {
 
         double scale = 1.0;
         int N = 50;
-        int M = 10;
+        int M = 20;
 
         HashTableDrawingUtility.setScale(scale);
         Set<Oomage> oomies = new HashSet<Oomage>();
         for (int i = 0; i < N; i += 1) {
-            oomies.add(SimpleOomage.randomSimpleOomage());
+            oomies.add(ComplexOomage.randomComplexOomage());
         }
         visualize(oomies, M, scale);
     }
 
     public static void visualize(Set<Oomage> set, int M, double scale) {
         HashTableDrawingUtility.drawLabels(M);
+        int[] buckets = new int[M];
 
-        /* TODO: Create a visualization of the given hash table. Use
-           du.xCoord and du.yCoord to figure out where to draw
-           Oomages.
-         */
+        for (Oomage oo : set) {
+          int bucketPos = (oo.hashCode() & 0x7FFFFFFF) % M;
+          buckets[bucketPos]++;
+          oo.draw(HashTableDrawingUtility.xCoord(buckets[bucketPos]), HashTableDrawingUtility.yCoord(bucketPos, M), scale);
+        }
 
         /* When done with visualizer, be sure to try 
            scale = 0.5, N = 2000, M = 100. */           

@@ -5,6 +5,9 @@
  * @version 1.4 - April 14, 2016
  *
  **/
+
+import java.util.Arrays;
+
 public class RadixSort
 {
 
@@ -20,7 +23,10 @@ public class RadixSort
      **/
     public static String[] sort(String[] asciis)
     {
-        return null;
+        String[] sorted = new String[asciis.length];
+        System.arraycopy(asciis, 0, sorted, 0, asciis.length);
+        sortHelper(sorted, 0, sorted.length, 0);
+        return sorted;
     }
 
     /**
@@ -35,6 +41,60 @@ public class RadixSort
      **/
     private static void sortHelper(String[] asciis, int start, int end, int index)
     {
-        //TODO use if you want to
+        if (start == end || (end - start == 1)) {
+            return;
+        }
+        // gather counts for each value
+        int[] counts = new int[256];
+        int pointer = start;
+        while (pointer < end) {
+            if (index >= asciis[pointer].length()) {
+                counts[0] += 1;
+            } else {
+                counts[(int) asciis[pointer].charAt(index)] += 1;
+            }
+            pointer += 1;
+        }
+        
+        //update the counts for the new positions
+        for (int i = 1; i < 256; i++) {
+            counts[i] += counts[i - 1];
+        }
+        
+        // sort into temp array
+        String[] temp = new String[end - start];
+        while (pointer > start) {
+            pointer -= 1;
+            int pos;
+            if (index >= asciis[pointer].length()) {
+                counts[0] -= 1;
+                pos = counts[0];
+            } else {
+                counts[(int) asciis[pointer].charAt(index)] -= 1;
+                pos = counts[(int) asciis[pointer].charAt(index)];
+            }
+            temp[pos] = asciis[pointer];
+        }
+        
+        
+        //copy back into original array
+        System.arraycopy(temp, 0, asciis, start, temp.length);
+        
+        //recursively sort based on the next index
+        for (int i = 1; i < counts.length; i++) {
+            sortHelper(asciis, start + counts[i - 1], start +counts[i], index + 1);
+        }
+        sortHelper(asciis, start + counts[counts.length - 1], end, index + 1);
+    }
+    
+    public static void main(String[] args) {
+        String[] students = {"Alice", "Vanessa", "Ethan", "Amylyn", "Aragorn", "Amanda", "Jeff", "Jeffrey", "Notch", "Amy"};
+        //String[] students = {"Alice", "Vanessa", "Ethan", "Amy"};
+        
+        String[] sortedStudents = sort(students);
+        System.out.println("Original array:");
+        System.out.println(Arrays.toString(students));
+        System.out.println("Sorted array:");
+        System.out.println(Arrays.toString(sortedStudents));
     }
 }

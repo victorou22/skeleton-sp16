@@ -1,4 +1,4 @@
-/** Performs some basic linked list tests. */
+ /** Performs some basic linked list tests. */
 public class ArrayDequeTest {
 	
 	/* Utility method for printing out empty checks. */
