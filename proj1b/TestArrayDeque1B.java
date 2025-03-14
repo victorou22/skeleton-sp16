@@ -2,64 +2,6 @@ import static org.junit.Assert.*;
 import org.junit.Test;
 
 public class TestArrayDeque1B {
-
-	/*
-	@Test
-	public void testGet() {
-		StudentArrayDeque<Integer> sad1 = new StudentArrayDeque<Integer>();
-		sad1.addLast(1);
-		sad1.addLast(2);
-		sad1.addLast(3);
-		assertEquals(1, (int) sad1.get(0));
-		assertEquals(2, (int) sad1.get(1));
-		assertEquals(3, (int) sad1.get(2));
-	}
-
-	@Test
-	public void testRemoveFirst() {
-		StudentArrayDeque<Integer> sad1 = new StudentArrayDeque<Integer>();
-		sad1.addLast(1);
-		sad1.addLast(2);
-		sad1.addLast(3);
-		assertEquals(3, sad1.size());
-		assertEquals(1, (int) sad1.removeFirst());
-		assertEquals(2, (int) sad1.get(0));
-		assertEquals(2, sad1.size());
-	}
-
-	@Test
-	public void testRemoveFirstNull() {
-		StudentArrayDeque<Integer> sad1 = new StudentArrayDeque<Integer>();
-		assertEquals(null, sad1.removeFirst());
-		assertEquals(0, sad1.size());
-	}
-
-	@Test
-	public void testRemoveLast() {
-		StudentArrayDeque<Integer> sad1 = new StudentArrayDeque<Integer>();
-		sad1.addLast(1);
-		sad1.addLast(2);
-		sad1.addLast(3);
-		assertEquals(3, sad1.size());
-		assertEquals(3, (int) sad1.removeLast());
-		assertEquals(2, sad1.size());
-	}
-
-	@Test
-	public void testRemoveLastNull() {
-		StudentArrayDeque<Integer> sad1 = new StudentArrayDeque<Integer>();
-		assertEquals(null, sad1.removeLast());
-		assertEquals(0, sad1.size());
-	}
-
-	@Test
-	public void testIsEmpty() {
-		StudentArrayDeque<Integer> sad1 = new StudentArrayDeque<Integer>();
-		assertEquals(true, sad1.isEmpty());
-		assertEquals(0, sad1.size());
-	}
-	*/
-
 	@Test
 	public void randomTests() {
 		StudentArrayDeque<Integer> sad1 = new StudentArrayDeque<Integer>();

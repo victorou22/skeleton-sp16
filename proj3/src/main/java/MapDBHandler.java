@@ -2,9 +2,7 @@ import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  *  Parses OSM XML files using an XML SAX parser. Used to construct the graph of roads for
@@ -16,6 +14,7 @@ import java.util.Set;
  *  and the java
  *  <a href="https://docs.oracle.com/javase/tutorial/jaxp/sax/parsing.html">SAX parser tutorial</a>.
  *  @author Alan Yao
+ *  @author Victor Ou
  */
 public class MapDBHandler extends DefaultHandler {
     /**
@@ -29,10 +28,25 @@ public class MapDBHandler extends DefaultHandler {
                     "residential", "living_street", "motorway_link", "trunk_link", "primary_link",
                     "secondary_link", "tertiary_link"));
     private String activeState = "";
-    private final GraphDB g;
+    private Map<Long, Node> nodeMap;
+    private List<Node> wayNodes;
+    private boolean isValidHighwayType;
+    private Map<Node, Set<Node>> connections;
+
 
     public MapDBHandler(GraphDB g) {
-        this.g = g;
+        nodeMap = new HashMap<Long, Node>();
+        wayNodes = new ArrayList<Node>();
+        isValidHighwayType = false;
+        connections = new HashMap<Node, Set<Node>>();
+    }
+
+    public Map<Long, Node> getNodeMap() {
+        return this.nodeMap;
+    }
+
+    public Map<Node, Set<Node>> getConnections() {
+        return this.connections;
     }
 
     /**
@@ -52,19 +66,26 @@ public class MapDBHandler extends DefaultHandler {
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes)
             throws SAXException {
-        /* Some example code on how you might begin to parse XML files. */
         if (qName.equals("node")) {
             activeState = "node";
+            Node n = new Node(Long.parseLong(attributes.getValue("id")), Double.parseDouble(attributes.getValue("lon")),
+                    Double.parseDouble(attributes.getValue("lat")));
+            nodeMap.put(Long.parseLong(attributes.getValue("id")), n);
         } else if (qName.equals("way")) {
+            isValidHighwayType = false;
+            wayNodes.clear();
             activeState = "way";
-//            System.out.println("Beginning a way...");
+        } else if (activeState.equals("way") && qName.equals("nd")) {
+            Node wayNode = nodeMap.get(Long.parseLong(attributes.getValue("ref")));
+            wayNodes.add(wayNode);
         } else if (activeState.equals("way") && qName.equals("tag")) {
             String k = attributes.getValue("k");
             String v = attributes.getValue("v");
-//            System.out.println("Tag with k=" + k + ", v=" + v + ".");
+            if (k.equals("highway") && ALLOWED_HIGHWAY_TYPES.contains(v)) {
+                isValidHighwayType = true;
+            }
         } else if (activeState.equals("node") && qName.equals("tag") && attributes.getValue("k")
                 .equals("name")) {
-//            System.out.println("Node with name: " + attributes.getValue("v"));
         }
     }
 
@@ -81,8 +102,27 @@ public class MapDBHandler extends DefaultHandler {
      */
     @Override
     public void endElement(String uri, String localName, String qName) throws SAXException {
-        if (qName.equals("way")) {
-//            System.out.println("Finishing a way...");
+        if (qName.equals("way") && isValidHighwayType) {
+            if (wayNodes.size() > 1) {
+                for (int i = 1; i < wayNodes.size(); i++) {
+                    Node n1 = wayNodes.get(i-1);
+                    Node n2 = wayNodes.get(i);
+                    Set<Node> n1Connections = connections.get(n1);
+                    Set<Node> n2Connections = connections.get(n2);
+                    if (n1Connections == null) {
+                        n1Connections = new HashSet<Node>();
+                        connections.put(n1, n1Connections);
+                    }
+                    if (n2Connections == null) {
+                        n2Connections = new HashSet<Node>();
+                        connections.put(n2, n2Connections);
+                    }
+                    n1Connections.add(n2);
+                    n2Connections.add(n1);
+                    }
+            }
+            wayNodes.clear();
+            isValidHighwayType = false;
         }
     }
 

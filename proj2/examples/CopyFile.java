@@ -38,6 +38,7 @@ public class CopyFile {
             // Create a FileWriter to write to outputFilename. FileWriter will overwrite any data
             // already in outputFilename.
             FileWriter writer = new FileWriter(outputFilename);
+            
 
             int intRead = -1;
             // Keep reading from the file input read() returns -1, which means the end of the file
@@ -47,9 +48,6 @@ public class CopyFile {
                 char charRead = (char) intRead;
                 writer.write(charRead);
             }
-
-            System.out.println("Successfully copied file " + inputFilename + " to "
-                    + outputFilename);
 
             // Close the reader and writer.
             bufferedReader.close();
